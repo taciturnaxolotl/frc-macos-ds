@@ -30,6 +30,17 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 820, minHeight: 220)
+        // Tab switching shortcuts
+        .overlay {
+            Group {
+                Button("") { tab = .control }     .keyboardShortcut("1", modifiers: .command)
+                Button("") { tab = .joysticks }   .keyboardShortcut("2", modifiers: .command)
+                Button("") { tab = .diagnostics } .keyboardShortcut("3", modifiers: .command)
+                Button("") { tab = .log }         .keyboardShortcut("4", modifiers: .command)
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Picker("", selection: $tab) {
@@ -53,6 +64,7 @@ struct ContentView: View {
                     )
                 }
                 .labelStyle(.iconOnly)
+                .keyboardShortcut("k", modifiers: .command)
 
                 BatteryView(voltage: state.batteryVoltage, history: state.batteryHistory)
             }
@@ -116,6 +128,18 @@ private struct ModePanel: View {
                 }
             }
             .onChange(of: state.mode) { state.isEnabled = false }
+            // Mode shortcuts (hidden buttons)
+            .overlay {
+                Group {
+                    Button("") { state.mode = .teleop;    state.isEnabled = false }
+                        .keyboardShortcut("t", modifiers: .command)
+                    Button("") { state.mode = .auto; state.isEnabled = false }
+                        .keyboardShortcut("u", modifiers: .command)
+                    Button("") { state.mode = .test;      state.isEnabled = false }
+                        .keyboardShortcut("y", modifiers: .command)
+                }
+                .opacity(0).allowsHitTesting(false)
+            }
 
             Divider()
 
@@ -124,6 +148,12 @@ private struct ModePanel: View {
             }
             .buttonStyle(WideButtonStyle(fill: state.isEnabled ? Color(red: 0.75, green: 0.1, blue: 0.1) : .green))
             .disabled(!state.isEnabled && !canEnable)
+            // Enter always disables
+            .overlay {
+                Button("") { state.isEnabled = false }
+                    .keyboardShortcut(.return, modifiers: [])
+                    .opacity(0).allowsHitTesting(false)
+            }
 
             Divider()
 
@@ -227,6 +257,7 @@ private struct PCStatsPanel: View {
             .buttonStyle(.borderedProminent)
             .tint(state.isEStopped ? .red.opacity(0.6) : .red)
             .controlSize(.large)
+            .keyboardShortcut(.space, modifiers: [])
         }
     }
 
