@@ -16,13 +16,13 @@ env:
 
 jobs:
   build-macos:
-    runs-on: macos-15
+    runs-on: macos-26
     outputs:
       dmg_name: ${{ steps.package.outputs.dmg_name }}
       dmg_size: ${{ steps.sparkle_sign.outputs.dmg_size }}
       sparkle_signature: ${{ steps.sparkle_sign.outputs.signature }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Get version
         id: version
@@ -68,16 +68,16 @@ jobs:
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Release \
-            -archivePath build/FRCMacDS.xcarchive \
+            -archivePath "$PWD/build/FRCMacDS.xcarchive" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             CODE_SIGN_STYLE=Manual \
             MARKETING_VERSION="${{ steps.version.outputs.version }}" \
-            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.version }}" \
-            | xcpretty
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.version }}"
 
       - name: Export Archive
         run: |
+          mkdir -p build
           cat > build/ExportOptions.plist << 'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -195,7 +195,7 @@ jobs:
           echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
 
       - name: Upload macOS DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos-dmg
           path: build/FRCMacDS-*-macOS.dmg
@@ -207,7 +207,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
 
@@ -219,7 +219,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
 
