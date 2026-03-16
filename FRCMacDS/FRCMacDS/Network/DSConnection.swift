@@ -72,12 +72,14 @@ final class DSConnection {
         }
 
         tcpChannel.onConnected = { [weak self] in
+            self?.appState.startNewSession()
             self?.startTCPLoop()
             self?.appState.appendLog(LogMessage(timestamp: .now, level: .info, text: "TCP connected."))
         }
 
         tcpChannel.onDisconnected = { [weak self] in
             self?.appState.appendLog(LogMessage(timestamp: .now, level: .warning, text: "TCP disconnected."))
+            self?.appState.saveCurrentSession()
         }
     }
 

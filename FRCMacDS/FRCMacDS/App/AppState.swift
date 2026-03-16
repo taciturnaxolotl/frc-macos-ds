@@ -52,6 +52,12 @@ final class AppState {
     // MARK: - Log
 
     var logMessages: [LogMessage] = []
+    var currentSessionID: UUID?
+    private var currentSessionStart: Date?
+
+    // Saved session browsing
+    var savedSessions: [LogSession] = []
+    var viewingSessionID: UUID? = nil  // nil = live
 
     // MARK: - Pending one-shot requests
 
@@ -77,6 +83,33 @@ final class AppState {
         if logMessages.count > 2000 {
             logMessages.removeFirst(logMessages.count - 2000)
         }
+    }
+
+    /// Call when TCP connects to start a new log session
+    func startNewSession() {
+        saveCurrentSession()
+        let id = UUID()
+        currentSessionID = id
+        currentSessionStart = Date()
+        logMessages.removeAll()
+        appendLog(LogMessage(timestamp: .now, level: .info, text: "Session started."))
+    }
+
+    /// Save current session to disk
+    func saveCurrentSession() {
+        guard let id = currentSessionID, let start = currentSessionStart, !logMessages.isEmpty else { return }
+        let session = LogSession(
+            id: id,
+            startDate: start,
+            teamNumber: teamNumber,
+            messages: logMessages.map { SavedLogMessage($0) }
+        )
+        LogStore.shared.save(session)
+        refreshSavedSessions()
+    }
+
+    func refreshSavedSessions() {
+        savedSessions = LogStore.shared.listSessions()
     }
 }
 

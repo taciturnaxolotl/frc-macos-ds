@@ -4,18 +4,59 @@ import AppKit
 struct LogView: View {
     @Environment(AppState.self) private var state
     @State private var filterLevel: LogMessage.Level? = nil
+    @State private var viewingSavedSession: LogSession? = nil
 
-    private var messages: [LogMessage] {
-        guard let level = filterLevel else { return state.logMessages }
-        return state.logMessages.filter { $0.level == level }
+    private var isLive: Bool { viewingSavedSession == nil }
+
+    private var displayMessages: [LogMessage] {
+        let source: [LogMessage]
+        if let saved = viewingSavedSession {
+            source = saved.messages.map { $0.toLogMessage() }
+        } else {
+            source = state.logMessages
+        }
+        guard let level = filterLevel else { return source }
+        return source.filter { $0.level == level }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Text("Log")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
+                // Session picker
+                Menu {
+                    Button("Live") {
+                        viewingSavedSession = nil
+                    }
+
+                    if !state.savedSessions.isEmpty {
+                        Divider()
+                        ForEach(state.savedSessions) { session in
+                            Button("\(session.displayName) — Team \(session.teamNumber) (\(session.messages.count) msgs)") {
+                                if let full = LogStore.shared.loadSession(id: session.id) {
+                                    viewingSavedSession = full
+                                }
+                            }
+                        }
+                        Divider()
+                        Button("Delete All Saved Logs") {
+                            for session in state.savedSessions {
+                                LogStore.shared.deleteSession(id: session.id)
+                            }
+                            state.refreshSavedSessions()
+                            viewingSavedSession = nil
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isLive ? "circle.fill" : "clock")
+                            .foregroundStyle(isLive ? .green : .secondary)
+                            .font(.system(size: 8))
+                        Text(isLive ? "Live" : (viewingSavedSession?.displayName ?? ""))
+                            .font(.caption.bold())
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
 
                 Spacer()
 
@@ -29,17 +70,24 @@ struct LogView: View {
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 340)
 
-                Button("Clear") { state.logMessages.removeAll() }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                if isLive {
+                    Button("Clear") { state.logMessages.removeAll() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                } else {
+                    Button("Back to Live") { viewingSavedSession = nil }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
             }
             .padding([.horizontal, .top])
             .padding(.bottom, 6)
 
             Divider()
 
-            LogTextView(messages: messages)
+            LogTextView(messages: displayMessages)
         }
+        .onAppear { state.refreshSavedSessions() }
     }
 }
 
