@@ -26,10 +26,10 @@ struct ContentView: View {
             case .control:     ControlTab()
             case .joysticks:   JoystickView()
             case .diagnostics: TelemetryView()
-            case .log:         LogView()
+            case .log:         LogView().frame(minHeight: 400)
             }
         }
-        .frame(minWidth: 820, minHeight: 220)
+        .frame(minWidth: 820, minHeight: tab == .log ? 400 : 220)
         // Tab switching shortcuts
         .overlay {
             Group {
@@ -69,6 +69,11 @@ struct ContentView: View {
                 BatteryView(voltage: state.batteryVoltage, history: state.batteryHistory)
             }
         }
+        .onChange(of: tab) { _, newTab in
+            if newTab != .log, let win = NSApp.keyWindow {
+                win.setContentSize(CGSize(width: win.frame.width, height: 320))
+            }
+        }
         .background(WindowConfigurator())
     }
 }
@@ -97,8 +102,6 @@ private struct ControlTab: View {
                 .frame(maxWidth: .infinity)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .disabled(!state.robotCommsOK)
-        .opacity(state.robotCommsOK ? 1 : 0.45)
     }
 }
 
@@ -113,7 +116,7 @@ private struct ModePanel: View {
 
         VStack(alignment: .leading, spacing: 10) {
             LabeledContent("Team #") {
-                TextField("", value: $state.teamNumber, format: .number)
+                TextField("", value: $state.teamNumber, format: .number.grouping(.never))
                     .textFieldStyle(.roundedBorder)
                     .monospacedDigit()
                     .frame(width: 64)
@@ -147,7 +150,8 @@ private struct ModePanel: View {
                 state.isEnabled.toggle()
             }
             .buttonStyle(WideButtonStyle(fill: state.isEnabled ? Color(red: 0.75, green: 0.1, blue: 0.1) : .green))
-            .disabled(!state.isEnabled && !canEnable)
+            .disabled(!canEnable)
+            .opacity(canEnable ? 1 : 0.45)
             // Enter always disables
             .overlay {
                 Button("") { state.isEnabled = false }
@@ -163,17 +167,19 @@ private struct ModePanel: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(!state.robotCommsOK)
 
                 Button { state.pendingRestartCode = true } label: {
                     Label("Restart Code", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .disabled(!state.robotCommsOK)
             }
+            .disabled(!state.robotCommsOK)
+            .opacity(state.robotCommsOK ? 1 : 0.45)
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { NSApp.keyWindow?.makeFirstResponder(nil) }
     }
 
     private var canEnable: Bool { state.robotCommsOK && !state.isEStopped }
@@ -258,6 +264,8 @@ private struct PCStatsPanel: View {
             .tint(state.isEStopped ? .red.opacity(0.6) : .red)
             .controlSize(.large)
             .keyboardShortcut(.space, modifiers: [])
+            .disabled(!state.robotCommsOK)
+            .opacity(state.robotCommsOK ? 1 : 0.45)
         }
     }
 
@@ -288,14 +296,10 @@ private struct MiniBar: View {
 // MARK: - Robot status
 
 private struct RobotStatusPanel: View {
-    @Environment(AppState.self)     private var state
-    @Environment(DSConnection.self) private var connection
+    @Environment(AppState.self) private var state
 
     var body: some View {
-        @Bindable var state = state
-
         VStack(alignment: .leading, spacing: 10) {
-            // Mini log
             MiniLogView()
         }
     }
@@ -322,12 +326,13 @@ private struct DSStatusRow: View {
 private struct MiniLogView: View {
     @Environment(AppState.self) private var state
 
-    private static let timeFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; return f
-    }()
-
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
+            Text("LOG")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .kerning(1)
+
             ForEach(state.logMessages.suffix(4).reversed()) { msg in
                 HStack(alignment: .top, spacing: 4) {
                     Image(systemName: levelIcon(msg.level))
@@ -338,6 +343,9 @@ private struct MiniLogView: View {
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(msg.level == .error ? Color.red : .secondary)
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -392,11 +400,13 @@ private struct WideButtonStyle: ButtonStyle {
 private struct WindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        Task { @MainActor in
+        DispatchQueue.main.async {
             guard let win = view.window else { return }
             win.level                       = .floating
             win.isMovableByWindowBackground = false
             win.collectionBehavior          = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            win.setContentSize(CGSize(width: win.frame.width, height: 320))
+            win.makeFirstResponder(nil)
         }
         return view
     }

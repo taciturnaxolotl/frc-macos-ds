@@ -57,11 +57,12 @@ final class TCPChannel {
     private func processReceived(_ data: Data) {
         receiveBuffer.append(data)
         while receiveBuffer.count >= 3 {
-            let msgSize   = Int(receiveBuffer[0]) << 8 | Int(receiveBuffer[1])
+            let base      = receiveBuffer.startIndex
+            let msgSize   = Int(receiveBuffer[base]) << 8 | Int(receiveBuffer[base + 1])
             let totalSize = msgSize + 2
             guard receiveBuffer.count >= totalSize, msgSize >= 1 else { break }
-            let tagID   = receiveBuffer[2]
-            let payload = receiveBuffer.subdata(in: 3..<totalSize)
+            let tagID   = receiveBuffer[base + 2]
+            let payload = receiveBuffer.subdata(in: (base + 3)..<(base + totalSize))
             onMessage?(tagID, payload)
             receiveBuffer.removeFirst(totalSize)
         }

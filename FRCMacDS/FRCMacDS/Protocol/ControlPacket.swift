@@ -9,6 +9,7 @@ struct ControlByte: OptionSet {
 
 struct RequestByte: OptionSet {
     var rawValue: UInt8
+    static let dsConnected   = RequestByte(rawValue: 1 << 4)  // always set
     static let rebootRoboRIO = RequestByte(rawValue: 1 << 3)
     static let restartCode   = RequestByte(rawValue: 1 << 2)
 }

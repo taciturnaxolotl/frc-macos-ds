@@ -14,5 +14,6 @@ struct FRCMacDSApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 920, height: 280)
+
     }
 }

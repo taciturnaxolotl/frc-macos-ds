@@ -15,6 +15,7 @@ final class DSConnection {
 
     private var sentDateTime:   Bool = false
     private var requestDateTime: Bool = false
+    private var tcpTask:        Task<Void, Never>?
 
     var isConnected: Bool { appState.robotCommsOK }
 
@@ -41,6 +42,8 @@ final class DSConnection {
         tcpChannel.disconnect()
         watchdogTask?.cancel()
         watchdogTask    = nil
+        tcpTask?.cancel()
+        tcpTask         = nil
         sentDateTime    = false
         requestDateTime = false
         sequenceNumber  = 0
@@ -69,7 +72,7 @@ final class DSConnection {
         }
 
         tcpChannel.onConnected = { [weak self] in
-            self?.sendDescriptors()
+            self?.startTCPLoop()
             self?.appState.appendLog(LogMessage(timestamp: .now, level: .info, text: "TCP connected."))
         }
 
@@ -88,7 +91,7 @@ final class DSConnection {
         if appState.isEnabled  { control.insert(.enabled) }
         control.rawValue |= appState.mode.rawValue
 
-        var request = RequestByte()
+        var request = RequestByte([.dsConnected])
         if appState.pendingReboot {
             request.insert(.rebootRoboRIO)
             appState.pendingReboot = false
@@ -101,9 +104,10 @@ final class DSConnection {
         let sendDT = !sentDateTime || requestDateTime
         if sendDT { sentDateTime = true; requestDateTime = false }
 
-        let joysticks = appState.joystickSlots.map {
-            $0.state?.toTagData() ?? JoystickTagData.neutral
-        }
+        // Only include joystick tags when enabled (per WPILib protocol)
+        let joysticks: [JoystickTagData] = appState.isEnabled
+            ? appState.joystickSlots.map { $0.state?.toTagData() ?? JoystickTagData.neutral }
+            : []
 
         return PacketBuilder.build(
             sequence:     sequenceNumber,
@@ -118,11 +122,14 @@ final class DSConnection {
     // MARK: - Inbound UDP
 
     private func handleRobotUDP(_ data: Data) {
-        guard let status = StatusPacket.parse(data) else { return }
+        guard let status = StatusPacket.parse(data) else {
+            print("[DSConnection] StatusPacket.parse failed, \(data.count) bytes: \(data.prefix(16).map { String(format: "%02x", $0) }.joined(separator: " "))")
+            return
+        }
 
         lastReceivedAt           = .now
         appState.robotCommsOK    = true
-        appState.robotCodeOK     = status.status.contains(.codeInit)
+        appState.robotCodeOK     = status.codeRunning
         appState.batteryVoltage  = status.batteryVolts
 
         if status.requestDate { requestDateTime = true }
@@ -145,29 +152,88 @@ final class DSConnection {
     private func handleTCPMessage(tagID: UInt8, payload: Data) {
         switch tagID {
         case DSTag.stdout:
-            if let text = String(bytes: payload, encoding: .utf8) {
-                appState.appendLog(LogMessage(timestamp: .now, level: .print, text: text.trimmingCharacters(in: .newlines)))
+            // Bytes 0-3: float32 timestamp, bytes 4-5: sequence number, bytes 6+: message
+            let textBytes = payload.count > 6 ? payload.dropFirst(6) : payload
+            if let text = String(bytes: textBytes, encoding: .utf8) {
+                let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !clean.isEmpty {
+                    appState.appendLog(LogMessage(timestamp: .now, level: .print, text: clean))
+                }
             }
         case DSTag.errorMessage:
-            guard payload.count >= 9 else { return }
-            let isError  = payload[0] != 0
-            let msgStart = min(9, payload.count)
-            if let text = String(bytes: payload[msgStart...], encoding: .utf8) {
-                appState.appendLog(LogMessage(timestamp: .now, level: isError ? .error : .warning, text: text))
-            }
+            // Bytes 0-3: timestamp, 4-5: seq, 6-7: reserved, 8-11: error code, 12: flags
+            // Bytes 13+: 2-byte-length-prefixed strings: Details, Location, Call Stack
+            guard payload.count >= 13 else { return }
+            let isError = (payload[12] & 0x80) != 0
+            let text = parseLengthPrefixedStrings(payload.dropFirst(13))
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            appState.appendLog(LogMessage(timestamp: .now, level: isError ? .error : .warning, text: text))
         default:
             break
         }
     }
 
-    // MARK: - TCP descriptors
+    // MARK: - Helpers
 
-    private func sendDescriptors() {
-        for (i, slot) in appState.joystickSlots.enumerated() {
-            guard let state = slot.state else { continue }
-            let desc = state.toDescriptor(index: UInt8(i))
+    /// Parses a sequence of 2-byte-length-prefixed ASCII strings (OpenDS format)
+    private func parseLengthPrefixedStrings(_ data: Data) -> [String] {
+        var result: [String] = []
+        var i = data.startIndex
+        while i + 1 < data.endIndex {
+            let len = Int(data[i]) << 8 | Int(data[i + 1])
+            i += 2
+            guard i + len <= data.endIndex else { break }
+            let chunk = data[i..<(i + len)]
+            let s = String(bytes: chunk, encoding: .utf8)?
+                .filter { $0.asciiValue.map { $0 > 31 && $0 < 127 } ?? false }
+            if let s, !s.isEmpty { result.append(s) }
+            i += len
+        }
+        return result
+    }
+
+    // MARK: - TCP cycle
+
+    private func startTCPLoop() {
+        tcpTask?.cancel()
+        tcpTask = Task { @MainActor [weak self] in
+            let clock    = ContinuousClock()
+            let interval = Duration.milliseconds(20)
+            var next     = clock.now
+            while !Task.isCancelled {
+                self?.sendTCPCycle()
+                next += interval
+                try? await clock.sleep(until: next, tolerance: .milliseconds(2))
+            }
+        }
+    }
+
+    private func sendTCPCycle() {
+        // Match info
+        var matchInfo = Data()
+        matchInfo.append(0x00)   // match number hi
+        matchInfo.append(0x00)   // match number lo
+        matchInfo.append(0x00)   // replay number
+        matchInfo.append(0x00)   // match type: 0 = none/practice
+        tcpChannel.send(tagID: DSTag.matchInfo, payload: matchInfo)
+
+        // Joystick descriptors — all 6 slots, placeholder for empty
+        for i in 0..<appState.joystickSlots.count {
+            let slot = appState.joystickSlots[i]
+            let desc = slot.state?.toDescriptor(index: UInt8(i))
+                ?? JoystickDescriptor(joystickIndex: UInt8(i), isXbox: false, type: 0,
+                                      name: "", axisCount: 0, axisTypes: [],
+                                      buttonCount: 0, povCount: 0)
             tcpChannel.send(tagID: DSTag.joystickDesc, payload: desc.encode())
         }
+
+        // Game data (empty)
+        tcpChannel.send(tagID: DSTag.gameData, payload: Data())
+
+        // DS ping
+        tcpChannel.send(tagID: DSTag.dsPing, payload: Data())
     }
 
     // MARK: - Watchdog

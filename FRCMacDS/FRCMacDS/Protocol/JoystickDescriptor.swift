@@ -17,10 +17,10 @@ struct JoystickDescriptor {
         data.append(isXbox ? 1 : 0)
         data.append(type)
 
-        // Name: 16 bytes, null-padded
-        var nameBytes = [UInt8](repeating: 0, count: 16)
-        for (i, b) in Data(name.utf8).prefix(16).enumerated() { nameBytes[i] = b }
-        data.append(contentsOf: nameBytes)
+        // Name: length byte then UTF-8 bytes (OpenDS format)
+        let nameBytes = Data(name.utf8)
+        data.append(UInt8(nameBytes.count))
+        data.append(nameBytes)
 
         data.append(axisCount)
         data.append(contentsOf: axisTypes.prefix(Int(axisCount)))

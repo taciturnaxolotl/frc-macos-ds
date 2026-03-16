@@ -1,9 +1,9 @@
 import SwiftUI
+import AppKit
 
 struct LogView: View {
     @Environment(AppState.self) private var state
     @State private var filterLevel: LogMessage.Level? = nil
-    @State private var scrollProxy: ScrollViewProxy? = nil
 
     private var messages: [LogMessage] {
         guard let level = filterLevel else { return state.logMessages }
@@ -12,7 +12,6 @@ struct LogView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
             HStack(spacing: 8) {
                 Text("Log")
                     .font(.caption.bold())
@@ -39,76 +38,94 @@ struct LogView: View {
 
             Divider()
 
-            ScrollViewReader { proxy in
-                List(messages) { msg in
-                    LogRow(msg: msg)
-                        .id(msg.id)
-                        .listRowSeparator(.visible)
-                }
-                .listStyle(.plain)
-                .font(.system(.caption, design: .monospaced))
-                .onChange(of: state.logMessages.count) { _, _ in
-                    if let last = messages.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                    }
-                }
-            }
+            LogTextView(messages: messages)
         }
     }
 }
 
-private struct LogRow: View {
-    let msg: LogMessage
+// MARK: - NSTextView wrapper
 
-    private static let timeFormatter: DateFormatter = {
+private struct LogTextView: NSViewRepresentable {
+    let messages: [LogMessage]
+
+    private static let timeFmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss.SSS"
         return f
     }()
 
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(Self.timeFormatter.string(from: msg.timestamp))
-                .foregroundStyle(.tertiary)
-                .frame(width: 90, alignment: .leading)
-
-            Image(systemName: levelIcon)
-                .foregroundStyle(levelColor)
-                .frame(width: 12)
-
-            Text(msg.text)
-                .foregroundStyle(textColor)
-                .textSelection(.enabled)
-                .lineLimit(nil)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 1)
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        let textView = scrollView.documentView as! NSTextView
+        textView.isEditable        = false
+        textView.isSelectable      = true
+        textView.drawsBackground   = false
+        textView.textContainerInset = NSSize(width: 6, height: 6)
+        textView.textContainer?.lineFragmentPadding = 0
+        return scrollView
     }
 
-    private var levelIcon: String {
-        switch msg.level {
-        case .print:   "text.alignleft"
-        case .info:    "info.circle"
-        case .warning: "exclamationmark.triangle"
-        case .error:   "xmark.circle"
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        let textView = scrollView.documentView as! NSTextView
+        let attr = buildAttributedString()
+        textView.textStorage?.setAttributedString(attr)
+        // Scroll to bottom
+        textView.scrollToEndOfDocument(nil)
+    }
+
+    private func buildAttributedString() -> NSAttributedString {
+        let font = NSFont.monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        let result = NSMutableAttributedString()
+
+        for (i, msg) in messages.enumerated() {
+            let time = Self.timeFmt.string(from: msg.timestamp)
+
+            let timeStr = NSAttributedString(string: "\(time)  ", attributes: [
+                .font: font,
+                .foregroundColor: NSColor.tertiaryLabelColor
+            ])
+            let levelStr = NSAttributedString(string: "\(levelTag(msg.level))  ", attributes: [
+                .font: font,
+                .foregroundColor: levelColor(msg.level)
+            ])
+            let msgStr = NSAttributedString(string: msg.text, attributes: [
+                .font: font,
+                .foregroundColor: msgColor(msg.level)
+            ])
+
+            result.append(timeStr)
+            result.append(levelStr)
+            result.append(msgStr)
+            if i < messages.count - 1 {
+                result.append(NSAttributedString(string: "\n", attributes: [.font: font]))
+            }
+        }
+        return result
+    }
+
+    private func levelTag(_ l: LogMessage.Level) -> String {
+        switch l {
+        case .print:   return "[OUT]"
+        case .info:    return "[INF]"
+        case .warning: return "[WRN]"
+        case .error:   return "[ERR]"
         }
     }
 
-    private var levelColor: Color {
-        switch msg.level {
-        case .print:   .secondary
-        case .info:    .accentColor
-        case .warning: .yellow
-        case .error:   .red
+    private func levelColor(_ l: LogMessage.Level) -> NSColor {
+        switch l {
+        case .print:   return .secondaryLabelColor
+        case .info:    return .controlAccentColor
+        case .warning: return .systemOrange
+        case .error:   return .systemRed
         }
     }
 
-    private var textColor: Color {
-        switch msg.level {
-        case .error:   .red
-        case .warning: .orange
-        default:       .primary
+    private func msgColor(_ l: LogMessage.Level) -> NSColor {
+        switch l {
+        case .error:   return .systemRed
+        case .warning: return .systemOrange
+        default:       return .labelColor
         }
     }
 }
