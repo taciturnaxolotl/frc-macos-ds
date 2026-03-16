@@ -17,6 +17,7 @@ struct ContentView: View {
     @Environment(DSConnection.self)         private var connection
     @Environment(HIDManager.self)           private var hidManager
     @Environment(PCDiagnosticsMonitor.self) private var pcDiag
+    @Environment(KeybindManager.self)       private var keybinds
 
     @State private var tab: NavTab = .control
 
@@ -30,13 +31,13 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 820, minHeight: tab == .log ? 400 : 220)
-        // Tab switching shortcuts
+        // Dynamic keybind shortcuts
         .overlay {
             Group {
-                Button("") { tab = .control }     .keyboardShortcut("1", modifiers: .command)
-                Button("") { tab = .joysticks }   .keyboardShortcut("2", modifiers: .command)
-                Button("") { tab = .diagnostics } .keyboardShortcut("3", modifiers: .command)
-                Button("") { tab = .log }         .keyboardShortcut("4", modifiers: .command)
+                bindButton(.tabControl)     { tab = .control }
+                bindButton(.tabJoysticks)   { tab = .joysticks }
+                bindButton(.tabDiagnostics) { tab = .diagnostics }
+                bindButton(.tabLog)         { tab = .log }
             }
             .opacity(0)
             .allowsHitTesting(false)
@@ -64,7 +65,7 @@ struct ContentView: View {
                     )
                 }
                 .labelStyle(.iconOnly)
-                .keyboardShortcut("k", modifiers: .command)
+                .modifier(DynamicShortcut(keybinds.binding(for: .connectToggle)))
 
                 BatteryView(voltage: state.batteryVoltage, history: state.batteryHistory)
             }
@@ -108,8 +109,9 @@ private struct ControlTab: View {
 // MARK: - Mode + Enable/Disable
 
 private struct ModePanel: View {
-    @Environment(AppState.self)     private var state
-    @Environment(DSConnection.self) private var connection
+    @Environment(AppState.self)       private var state
+    @Environment(DSConnection.self)   private var connection
+    @Environment(KeybindManager.self) private var keybinds
 
     var body: some View {
         @Bindable var state = state
@@ -134,12 +136,9 @@ private struct ModePanel: View {
             // Mode shortcuts (hidden buttons)
             .overlay {
                 Group {
-                    Button("") { state.mode = .teleop;    state.isEnabled = false }
-                        .keyboardShortcut("t", modifiers: .command)
-                    Button("") { state.mode = .auto; state.isEnabled = false }
-                        .keyboardShortcut("u", modifiers: .command)
-                    Button("") { state.mode = .test;      state.isEnabled = false }
-                        .keyboardShortcut("y", modifiers: .command)
+                    bindButton(.modeTeleop, keybinds) { state.mode = .teleop; state.isEnabled = false }
+                    bindButton(.modeAuto, keybinds)   { state.mode = .auto;   state.isEnabled = false }
+                    bindButton(.modeTest, keybinds)    { state.mode = .test;   state.isEnabled = false }
                 }
                 .opacity(0).allowsHitTesting(false)
             }
@@ -152,11 +151,13 @@ private struct ModePanel: View {
             .buttonStyle(WideButtonStyle(fill: state.isEnabled ? Color(red: 0.75, green: 0.1, blue: 0.1) : .green))
             .disabled(!canEnable)
             .opacity(canEnable ? 1 : 0.45)
-            // Enter always disables
+            // Enable/disable shortcuts
             .overlay {
-                Button("") { state.isEnabled = false }
-                    .keyboardShortcut(.return, modifiers: [])
-                    .opacity(0).allowsHitTesting(false)
+                Group {
+                    bindButton(.disable, keybinds)       { state.isEnabled = false }
+                    bindButton(.enableDisable, keybinds)  { state.isEnabled.toggle() }
+                }
+                .opacity(0).allowsHitTesting(false)
             }
 
             Divider()
@@ -167,12 +168,14 @@ private struct ModePanel: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .modifier(DynamicShortcut(keybinds.binding(for: .rebootRIO)))
 
                 Button { state.pendingRestartCode = true } label: {
                     Label("Restart Code", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .modifier(DynamicShortcut(keybinds.binding(for: .restartCode)))
             }
             .disabled(!state.robotCommsOK)
             .opacity(state.robotCommsOK ? 1 : 0.45)
@@ -190,6 +193,7 @@ private struct ModePanel: View {
 private struct PCStatsPanel: View {
     @Environment(AppState.self)             private var state
     @Environment(PCDiagnosticsMonitor.self) private var pcDiag
+    @Environment(KeybindManager.self)       private var keybinds
 
     var body: some View {
         @Bindable var state = state
@@ -263,7 +267,7 @@ private struct PCStatsPanel: View {
             .buttonStyle(.borderedProminent)
             .tint(state.isEStopped ? .red.opacity(0.6) : .red)
             .controlSize(.large)
-            .keyboardShortcut(.space, modifiers: [])
+            .modifier(DynamicShortcut(keybinds.binding(for: .eStop)))
             .disabled(!state.robotCommsOK)
             .opacity(state.robotCommsOK ? 1 : 0.45)
         }
@@ -392,6 +396,42 @@ private struct WideButtonStyle: ButtonStyle {
             )
             .opacity(configuration.isPressed && fill == nil ? 0.6 : 1)
             .contentShape(RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+// MARK: - Dynamic keybind helpers
+
+/// ViewModifier that applies a dynamic keyboard shortcut from a KeyCombo
+struct DynamicShortcut: ViewModifier {
+    let combo: KeyCombo?
+
+    init(_ combo: KeyCombo?) { self.combo = combo }
+
+    func body(content: Content) -> some View {
+        if let combo {
+            content.keyboardShortcut(combo.keyEquivalent, modifiers: combo.eventModifiers)
+        } else {
+            content
+        }
+    }
+}
+
+/// Creates a hidden button wired to a keybind action (used from ContentView which has keybinds in environment)
+@ViewBuilder
+private func bindButton(_ action: KeybindAction, _ keybinds: KeybindManager, perform: @escaping () -> Void) -> some View {
+    if let combo = keybinds.binding(for: action) {
+        Button("", action: perform)
+            .keyboardShortcut(combo.keyEquivalent, modifiers: combo.eventModifiers)
+    }
+}
+
+extension ContentView {
+    @ViewBuilder
+    func bindButton(_ action: KeybindAction, perform: @escaping () -> Void) -> some View {
+        if let combo = keybinds.binding(for: action) {
+            Button("", action: perform)
+                .keyboardShortcut(combo.keyEquivalent, modifiers: combo.eventModifiers)
+        }
     }
 }
 

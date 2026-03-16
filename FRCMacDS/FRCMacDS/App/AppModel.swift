@@ -2,17 +2,19 @@ import Foundation
 
 /// Root model that owns and wires together all subsystems.
 final class AppModel {
-    let appState:   AppState
-    let hidManager: HIDManager
-    let connection: DSConnection
-    let pcDiag:     PCDiagnosticsMonitor
+    let appState:       AppState
+    let hidManager:     HIDManager
+    let connection:     DSConnection
+    let pcDiag:         PCDiagnosticsMonitor
+    let keybindManager: KeybindManager
 
     init() {
         let state = AppState()
-        appState   = state
-        hidManager = HIDManager()
-        connection = DSConnection(appState: state)
-        pcDiag     = PCDiagnosticsMonitor()
+        appState       = state
+        hidManager     = HIDManager()
+        connection     = DSConnection(appState: state)
+        pcDiag         = PCDiagnosticsMonitor()
+        keybindManager = KeybindManager()
 
         hidManager.onDeviceAdded = { [weak self] (id: UUID, state: JoystickState) in
             guard let self else { return }

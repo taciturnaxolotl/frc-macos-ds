@@ -11,9 +11,14 @@ struct FRCMacDSApp: App {
                 .environment(model.connection)
                 .environment(model.hidManager)
                 .environment(model.pcDiag)
+                .environment(model.keybindManager)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 920, height: 280)
 
+        Settings {
+            KeybindSettingsView()
+                .environment(model.keybindManager)
+        }
     }
 }
