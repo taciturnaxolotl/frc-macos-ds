@@ -194,13 +194,15 @@ jobs:
           SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
           echo "signature=$SIGNATURE" >> $GITHUB_OUTPUT
 
-      - name: Upload macOS DMG
-        uses: actions/upload-artifact@v5
-        with:
-          name: macos-dmg
-          path: build/FRCMacDS-*-macOS.dmg
+      - name: Upload DMG to Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DMG_PATH=$(find build -name "*.dmg" -type f | head -1)
+          gh release upload "${{ env.VERSION }}" "$DMG_PATH" --clobber
 
-  upload-release:
+  update-appcast:
     needs: [build-macos]
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
@@ -210,23 +212,6 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: main
-
-      - name: Get version
-        id: version
-        run: |
-          VERSION="${{ env.VERSION }}"
-          VERSION="${VERSION#v}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v5
-        with:
-          path: artifacts
-
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1
-        with:
-          files: artifacts/macos-dmg/*
 
       - name: Update Sparkle appcast
         env:
