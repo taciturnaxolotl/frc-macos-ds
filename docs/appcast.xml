@@ -5,5 +5,44 @@
     <link>https://taciturnaxolotl.github.io/frc-macos-ds/appcast.xml</link>
     <description>Most recent updates to FRC Mac DS</description>
     <language>en</language>
+    <item>
+      <title>Version 0.0.1</title>
+      <pubDate>Mon, 16 Mar 2026 02:55:32 +0000</pubDate>
+      <sparkle:version>0.0.1</sparkle:version>
+      <sparkle:shortVersionString>0.0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<h2>v0.0.1</h2>
+<h3>FRC Driver Station for macOS</h3>
+<p>A native macOS FRC Driver Station that communicates with roboRIO robots using the 2020-2026 FRC protocol.</p>
+<h3>Features</h3>
+<ul>
+  <li><b>Robot Communication</b> — Full FRC DS protocol implementation over UDP (ports 1110/1150) and TCP (port 1740), including joystick data, date/time sync, and status monitoring</li>
+  <li><b>Robot Control</b> — Enable/disable in Teleoperated, Autonomous, and Test modes with E-STOP support</li>
+  <li><b>Joystick Support</b> — Native HID joystick/gamepad detection with drag-and-drop slot assignment (6 slots), live axis/button/POV preview</li>
+  <li><b>Live Telemetry</b> — Battery voltage with sparkline history, robot CPU/RAM/disk usage, CAN utilization, PC CPU and battery monitoring</li>
+  <li><b>Log Viewer</b> — Color-coded robot stdout and error messages with level filtering, full text selection/copy, and auto-scroll</li>
+  <li><b>Log Sessions</b> — Automatically saves logs per robot connection; browse and review past sessions</li>
+  <li><b>Customizable Keybinds</b> — Full keyboard shortcut editor in Settings (Cmd+,) with per-action recording and conflict detection</li>
+  <li><b>Auto-Updates</b> — Sparkle integration for seamless in-app updates</li>
+  <li><b>Always-on-Top Window</b> — Floats above other windows across all spaces, like the official DS</li>
+</ul>
+<h3>Default Keyboard Shortcuts</h3>
+<p>| Action | Shortcut |</p>
+<p>|--------|----------|</p>
+<p>| Disable | Enter |</p>
+<p>| E-STOP | Space |</p>
+<p>| Teleoperated | Cmd+T |</p>
+<p>| Autonomous | Cmd+U |</p>
+<p>| Test | Cmd+Y |</p>
+<p>| Connect/Disconnect | Cmd+K |</p>
+<p>| Tabs 1-4 | Cmd+1-4 |</p>
+<p><b>Full Changelog</b>: https://github.com/taciturnaxolotl/frc-macos-ds/commits/v0.0.1</p>]]></description>
+      <enclosure
+        url="https://github.com/taciturnaxolotl/frc-macos-ds/releases/download/v0.0.1/FRCMacDS-0.0.1-macOS.dmg"
+        sparkle:edSignature="sx3nmnwW8kzpTSCdOrKkEUCbW6ypUa4flkP29IrIyxY14RM7IIy+NnDe/AJfgkfbQjZC9pHFe1r7JwDc3w0NBw=="
+        length="3972862"
+        type="application/octet-stream"
+        sparkle:os="macos"/>
+    </item>
   </channel>
 </rss>
