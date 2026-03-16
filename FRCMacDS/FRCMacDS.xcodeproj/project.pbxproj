@@ -23,6 +23,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000001SPARKLE00000001 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +66,7 @@
 			);
 			name = FRCMacDS;
 			packageProductDependencies = (
+				AA000002SPARKLE00000002 /* Sparkle */,
 			);
 			productName = FRCMacDS;
 			productReference = 0B323A1B2F6718DC00D7CB0D /* FRCMacDS.app */;
@@ -98,6 +100,9 @@
 			productRefGroup = 0B323A1C2F6718DC00D7CB0D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				AA000003SPARKLE00000003 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			targets = (
 				0B323A1A2F6718DC00D7CB0D /* FRCMacDS */,
 			);
@@ -259,6 +264,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FRCMacDS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Driverstation;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -293,6 +299,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FRCMacDS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Driverstation;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -335,6 +342,32 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA000003SPARKLE00000003 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA000002SPARKLE00000002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000003SPARKLE00000003 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXBuildFile section */
+		AA000001SPARKLE00000001 /* Sparkle in Frameworks */ = {
+			isa = PBXBuildFile;
+			productRef = AA000002SPARKLE00000002 /* Sparkle */;
+		};
+/* End PBXBuildFile section */
 	};
 	rootObject = 0B323A132F6718DC00D7CB0D /* Project object */;
 }

@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct FRCMacDSApp: App {
     @State private var model = AppModel()
+    @State private var updaterViewModel = UpdaterViewModel()
 
     var body: some Scene {
         WindowGroup {
@@ -15,6 +16,11 @@ struct FRCMacDSApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 920, height: 280)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(viewModel: updaterViewModel)
+            }
+        }
 
         Settings {
             KeybindSettingsView()
