@@ -2,7 +2,7 @@
 
 ![image of the driver station](https://cdn.hackclub.com/019cf480-d31d-75cb-b53b-3738616ea808/image.png)
 
-This is a swift reimplementation of the [NI FRC Driverstation](https://docs.wpilib.org/en/stable/docs/software/driverstation/driver-station.html) which only runs on windows. Huge thanks to the [FRC networking](https://frcnetworking.readthedocs.io/en/latest/index.html) and [OpenDS](https://github.com/Boomaa23/open-ds) projects as that made implementing the protocal worlds easier. I offically can't recommend that you use this at competition and have a darwin driversation however as of the 2026 season `R704` doesn't explicitly forbid 3rd party driverstations so long as they use the correct ports and protocal. Your FTA might get a bit mad at you though.
+This is a swift reimplementation of the [NI FRC Driverstation](https://docs.wpilib.org/en/stable/docs/software/driverstation/driver-station.html) which only runs on windows. Huge thanks to the [FRC networking](https://frcnetworking.readthedocs.io/en/latest/index.html) and [OpenDS](https://github.com/Boomaa23/open-ds) projects as that made implementing the protocal worlds easier. Unfortunately you can't quite yet live out your dreams and have a darwin driverstation because of `R901` :(
 
 The canonical repo for this is hosted on tangled over at [`dunkirk.sh/frc-macos-ds`](https://tangled.org/dunkirk.sh/frc-macos-ds)
 
