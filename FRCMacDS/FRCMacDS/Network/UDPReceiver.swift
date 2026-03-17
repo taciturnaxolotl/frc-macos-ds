@@ -8,13 +8,18 @@ final class UDPReceiver {
     private var readSource: DispatchSourceRead?
 
     var onReceive: ((Data) -> Void)?
+    var onLog: ((String) -> Void)?
+
+    private func log(_ text: String) {
+        onLog?(text)
+    }
 
     func start() {
         stop()
 
         let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         guard fd >= 0 else {
-            print("[UDPReceiver] socket() failed: \(String(cString: strerror(errno)))")
+            log("UDPReceiver: socket() failed: \(String(cString: strerror(errno)))")
             return
         }
 
@@ -33,13 +38,13 @@ final class UDPReceiver {
             }
         }
         guard bound == 0 else {
-            print("[UDPReceiver] bind() failed: \(String(cString: strerror(errno)))")
+            log("UDPReceiver: bind() failed: \(String(cString: strerror(errno)))")
             close(fd)
             return
         }
 
         sockfd = fd
-        print("[UDPReceiver] bound to port 1150")
+        log("UDPReceiver: bound to port 1150")
 
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
         source.setEventHandler { [weak self] in self?.readPacket() }
@@ -52,7 +57,6 @@ final class UDPReceiver {
         let n = recv(sockfd, &buf, buf.count, 0)
         guard n > 0 else { return }
         let data = Data(buf.prefix(n))
-        print("[UDPReceiver] got \(n) bytes")
         onReceive?(data)
     }
 

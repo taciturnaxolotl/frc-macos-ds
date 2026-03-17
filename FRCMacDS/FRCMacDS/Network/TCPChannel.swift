@@ -11,16 +11,28 @@ final class TCPChannel {
     var onMessage:      ((UInt8, Data) -> Void)?
     var onConnected:    (() -> Void)?
     var onDisconnected: (() -> Void)?
+    var onLog: ((String) -> Void)?
+
+    private func log(_ text: String) {
+        onLog?(text)
+    }
 
     func connect(to host: String) {
         disconnect()
+        log("TCPChannel: connecting to \(host):1740")
         connection = NWConnection(host: NWEndpoint.Host(host), port: 1740, using: .tcp)
         connection?.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
                 self?.onConnected?()
                 self?.receiveLoop()
-            case .failed, .cancelled:
+            case .waiting(let err):
+                self?.log("TCPChannel: waiting - \(err)")
+            case .failed(let err):
+                self?.log("TCPChannel: failed - \(err)")
+                self?.connection = nil
+                self?.onDisconnected?()
+            case .cancelled:
                 self?.connection = nil
                 self?.onDisconnected?()
             default: break

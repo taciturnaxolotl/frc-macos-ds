@@ -32,7 +32,7 @@ final class DSConnection {
         udpReceiver.start()
         tcpChannel.connect(to: ip)
         appState.connectionState = .connecting
-        appState.appendLog(LogMessage(timestamp: .now, level: .info, text: "Connecting to \(ip)…"))
+        log("Connecting to \(ip)…")
         startWatchdog()
     }
 
@@ -53,12 +53,23 @@ final class DSConnection {
         appState.robotCommsOK    = false
         appState.robotCodeOK     = false
         appState.connectionState = .disconnected
-        appState.appendLog(LogMessage(timestamp: .now, level: .info, text: "Disconnected."))
+        log("Disconnected.")
     }
 
     // MARK: - Callbacks
 
+    private func log(_ text: String, level: LogMessage.Level = .info) {
+        appState.appendLog(LogMessage(timestamp: .now, level: level, text: text))
+    }
+
     private func wireCallbacks() {
+        let logFn: (String) -> Void = { [weak self] text in
+            self?.log(text)
+        }
+        udpSender.onLog = logFn
+        udpReceiver.onLog = logFn
+        tcpChannel.onLog = logFn
+
         udpSender.onSendPacket = { [weak self] in
             self?.buildUDPPacket() ?? Data()
         }
@@ -74,11 +85,11 @@ final class DSConnection {
         tcpChannel.onConnected = { [weak self] in
             self?.appState.startNewSession()
             self?.startTCPLoop()
-            self?.appState.appendLog(LogMessage(timestamp: .now, level: .info, text: "TCP connected."))
+            self?.log("TCP connected.")
         }
 
         tcpChannel.onDisconnected = { [weak self] in
-            self?.appState.appendLog(LogMessage(timestamp: .now, level: .warning, text: "TCP disconnected."))
+            self?.log("TCP disconnected.", level: .warning)
             self?.appState.saveCurrentSession()
         }
     }
@@ -125,11 +136,14 @@ final class DSConnection {
 
     private func handleRobotUDP(_ data: Data) {
         guard let status = StatusPacket.parse(data) else {
-            print("[DSConnection] StatusPacket.parse failed, \(data.count) bytes: \(data.prefix(16).map { String(format: "%02x", $0) }.joined(separator: " "))")
+            log("StatusPacket parse failed, \(data.count) bytes: \(data.prefix(16).map { String(format: "%02x", $0) }.joined(separator: " "))", level: .warning)
             return
         }
 
-        lastReceivedAt           = .now
+        lastReceivedAt = .now
+        if !appState.robotCommsOK {
+            log("UDP comms established (seq \(status.sequenceNumber), battery \(String(format: "%.1f", status.batteryVolts))V)")
+        }
         appState.robotCommsOK    = true
         appState.robotCodeOK     = status.codeRunning
         appState.batteryVoltage  = status.batteryVolts
@@ -159,7 +173,7 @@ final class DSConnection {
             if let text = String(bytes: textBytes, encoding: .utf8) {
                 let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !clean.isEmpty {
-                    appState.appendLog(LogMessage(timestamp: .now, level: .print, text: clean))
+                    log(clean, level: .print)
                 }
             }
         case DSTag.errorMessage:
@@ -171,7 +185,7 @@ final class DSConnection {
                 .joined(separator: " ")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return }
-            appState.appendLog(LogMessage(timestamp: .now, level: isError ? .error : .warning, text: text))
+            log(text, level: isError ? .error : .warning)
         default:
             break
         }
@@ -248,6 +262,7 @@ final class DSConnection {
                 try? await clock.sleep(for: .milliseconds(100))
                 guard let self, let last = self.lastReceivedAt else { continue }
                 if clock.now - last > .milliseconds(500) && self.appState.robotCommsOK {
+                    self.log("UDP watchdog: no response for 500ms, marking disconnected", level: .warning)
                     self.appState.robotCommsOK    = false
                     self.appState.robotCodeOK     = false
                     self.appState.isEnabled       = false

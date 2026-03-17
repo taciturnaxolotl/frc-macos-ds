@@ -11,32 +11,21 @@ final class UDPSender {
     private var lastErrPrinted = ContinuousClock.now
 
     var onSendPacket: (() -> Data)?
+    var onLog: ((String) -> Void)?
     private(set) var isRunning = false
+
+    private func log(_ text: String) {
+        onLog?(text)
+    }
 
     func start(host: String) {
         stop()
 
         let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
         guard fd >= 0 else {
-            print("[UDPSender] socket() failed: \(String(cString: strerror(errno)))")
+            log("UDPSender: socket() failed: \(String(cString: strerror(errno)))")
             return
         }
-        var reuse: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
-        setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &reuse, socklen_t(MemoryLayout<Int32>.size))
-
-        // Bind to local port 1110 — robot expects source port 1110
-        var local        = sockaddr_in()
-        local.sin_family = sa_family_t(AF_INET)
-        local.sin_port   = UInt16(1110).bigEndian
-        local.sin_addr   = in_addr(s_addr: INADDR_ANY)
-        withUnsafePointer(to: &local) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
-                let r = bind(fd, sa, socklen_t(MemoryLayout<sockaddr_in>.size))
-                if r != 0 { print("[UDPSender] bind: \(String(cString: strerror(errno)))") }
-            }
-        }
-
         sockfd = fd
 
         var addr         = sockaddr_in()
@@ -46,7 +35,7 @@ final class UDPSender {
         destAddr = addr
 
         isRunning = true
-        print("[UDPSender] socket \(fd), bound :1110 → \(host):1110")
+        log("UDPSender: socket \(fd), sending to \(host):1110")
 
         sendTask = Task { @MainActor [weak self] in
             let clock    = ContinuousClock()
@@ -73,7 +62,7 @@ final class UDPSender {
                         let e = errno
                         let now = ContinuousClock.now
                         if e != self.lastErrErrno || now - self.lastErrPrinted > .seconds(5) {
-                            print("[UDPSender] sendto: \(String(cString: strerror(e)))")
+                            self.log("UDPSender: sendto failed: \(String(cString: strerror(e)))")
                             self.lastErrErrno  = e
                             self.lastErrPrinted = now
                         }
