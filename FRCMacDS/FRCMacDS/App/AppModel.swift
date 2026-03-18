@@ -5,6 +5,7 @@ final class AppModel {
     let appState:       AppState
     let hidManager:     HIDManager
     let gcManager:      GCManager
+    let xboxUSBManager: XboxUSBManager
     let connection:     DSConnection
     let pcDiag:         PCDiagnosticsMonitor
     let keybindManager: KeybindManager
@@ -14,20 +15,24 @@ final class AppModel {
         appState       = state
         hidManager     = HIDManager()
         gcManager      = GCManager()
+        xboxUSBManager = XboxUSBManager()
         connection     = DSConnection(appState: state)
         pcDiag         = PCDiagnosticsMonitor()
         keybindManager = KeybindManager()
 
         wireInputManager(hidManager)
         wireInputManager(gcManager)
+        wireInputManager(xboxUSBManager)
         let logFn: (String) -> Void = { [weak state] text in
             state?.appendLog(LogMessage(timestamp: .now, level: .info, text: text))
         }
         hidManager.onLog = logFn
         gcManager.onLog = logFn
+        xboxUSBManager.onLog = logFn
 
         hidManager.start()
         gcManager.start()
+        xboxUSBManager.start()
         pcDiag.start()
     }
 
@@ -65,3 +70,4 @@ protocol _InputManagerCallbacks: AnyObject {
 
 extension HIDManager: _InputManagerCallbacks {}
 extension GCManager: _InputManagerCallbacks {}
+extension XboxUSBManager: _InputManagerCallbacks {}
