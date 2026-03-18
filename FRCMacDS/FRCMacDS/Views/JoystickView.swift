@@ -1,8 +1,9 @@
 import SwiftUI
 
 struct JoystickView: View {
-    @Environment(AppState.self)   private var appState
-    @Environment(HIDManager.self) private var hidManager
+    @Environment(AppState.self)        private var appState
+    @Environment(HIDManager.self)      private var hidManager
+    @Environment(XboxUSBManager.self)  private var xboxUSBManager
     @State private var selectedSlot: Int = 0
 
     var body: some View {
@@ -50,7 +51,12 @@ struct JoystickView: View {
         let slot = appState.joystickSlots[idx]
         if let state = slot.state {
             ScrollView(.vertical, showsIndicators: false) {
-                InputDisplay(state: state)
+                InputDisplay(
+                    state: state,
+                    rumble: slot.rumble,
+                    deviceID: slot.deviceID,
+                    xboxUSBManager: xboxUSBManager
+                )
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
@@ -177,6 +183,9 @@ private struct SlotPicker: View {
 
 private struct InputDisplay: View {
     let state: JoystickState
+    let rumble: JoystickRumble
+    let deviceID: UUID?
+    let xboxUSBManager: XboxUSBManager
 
     var body: some View {
         HStack(alignment: .top, spacing: 20) {
@@ -199,7 +208,7 @@ private struct InputDisplay: View {
                 Divider()
             }
 
-            // Buttons + POVs
+            // Buttons + POVs + Rumble
             VStack(alignment: .leading, spacing: 14) {
                 if !state.buttons.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -235,9 +244,132 @@ private struct InputDisplay: View {
                         }
                     }
                 }
+
+                if state.isXbox, let id = deviceID {
+                    RumbleSection(rumble: rumble, deviceID: id, xboxUSBManager: xboxUSBManager)
+                }
             }
 
             Spacer(minLength: 0)
+        }
+    }
+}
+
+// MARK: - Rumble
+
+private struct RumbleSection: View {
+    let rumble: JoystickRumble
+    let deviceID: UUID
+    let xboxUSBManager: XboxUSBManager
+    @State private var testLeft: Double = 0.5
+    @State private var testRight: Double = 0.5
+    @State private var isTesting = false
+
+    private var displayLeft:  Double { isTesting ? testLeft  : rumble.left }
+    private var displayRight: Double { isTesting ? testRight : rumble.right }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("RUMBLE")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .kerning(1)
+
+            VStack(spacing: 3) {
+                HStack(spacing: 6) {
+                    RumbleBar(label: "L", value: displayLeft)
+                    Slider(value: $testLeft, in: 0...1)
+                        .frame(width: 80)
+                }
+                HStack(spacing: 6) {
+                    RumbleBar(label: "R", value: displayRight)
+                    Slider(value: $testRight, in: 0...1)
+                        .frame(width: 80)
+                }
+            }
+
+            RumbleTestButton(
+                testLeft: testLeft,
+                testRight: testRight,
+                deviceID: deviceID,
+                xboxUSBManager: xboxUSBManager,
+                isTesting: $isTesting
+            )
+        }
+    }
+}
+
+private struct RumbleTestButton: View {
+    let testLeft: Double
+    let testRight: Double
+    let deviceID: UUID
+    let xboxUSBManager: XboxUSBManager
+    @Binding var isTesting: Bool
+    @State private var isPressed = false
+    @State private var rumbleTask: Task<Void, Never>?
+
+    var body: some View {
+        Text("Hold to Test")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(isPressed ? .white : .primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 4).fill(isPressed ? Color.accentColor : Color.secondary.opacity(0.15)))
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !isPressed else { return }
+                        isPressed = true
+                        isTesting = true
+                        rumbleTask = Task { @MainActor in
+                            let clock = ContinuousClock()
+                            while !Task.isCancelled {
+                                xboxUSBManager.setRumble(deviceID: deviceID, left: testLeft, right: testRight)
+                                try? await clock.sleep(for: .milliseconds(50))
+                            }
+                        }
+                    }
+                    .onEnded { _ in
+                        stopRumble()
+                    }
+            )
+            .onDisappear { stopRumble() }
+    }
+
+    private func stopRumble() {
+        rumbleTask?.cancel()
+        rumbleTask = nil
+        isPressed = false
+        isTesting = false
+        xboxUSBManager.setRumble(deviceID: deviceID, left: 0, right: 0)
+    }
+}
+
+private struct RumbleBar: View {
+    let label: String
+    let value: Double
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.secondary)
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.secondary.opacity(0.12))
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.orange)
+                        .frame(width: max(0, geo.size.width * value))
+                }
+            }
+            .frame(width: 80, height: 14)
+
+            Text(String(format: "%.0f%%", value * 100))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 36, alignment: .trailing)
         }
     }
 }

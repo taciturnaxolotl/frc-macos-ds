@@ -29,6 +29,14 @@ struct RobotStatus {
     var ramUsage:       Double?
     var diskUsage:      Double?
     var canUtilization: Double?
+
+    /// Rumble output per joystick slot (from robot via tag 0x01)
+    var rumble: [JoystickRumble] = []
+}
+
+struct JoystickRumble {
+    var left:  Double = 0   // 0.0–1.0
+    var right: Double = 0   // 0.0–1.0
 }
 
 enum StatusPacket {
@@ -64,6 +72,18 @@ enum StatusPacket {
             i = end
 
             switch tagID {
+            case 0x01: // Joystick output — 8 bytes: outputs(u32) + leftRumble(u16) + rightRumble(u16)
+                if payload.count >= 8 {
+                    let leftRaw  = UInt16(payload[4]) << 8 | UInt16(payload[5])
+                    let rightRaw = UInt16(payload[6]) << 8 | UInt16(payload[7])
+                    result.rumble.append(JoystickRumble(
+                        left:  Double(leftRaw) / 65535.0,
+                        right: Double(rightRaw) / 65535.0
+                    ))
+                } else {
+                    // Inactive slot (size < 8)
+                    result.rumble.append(JoystickRumble())
+                }
             case 0x05: // CPU — one byte, percent
                 if !payload.isEmpty { result.cpuUsage = Double(payload[0]) }
             case 0x06: // RAM — totalMB (u16) freeMB (u16)

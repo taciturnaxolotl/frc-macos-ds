@@ -156,6 +156,7 @@ private func dpadToPOV(up: Bool, down: Bool, left: Bool, right: Bool) -> Int16 {
 
 /// Opens unclaimed Xbox-compatible USB controllers directly via IOKit USB
 /// and reads their input reports, feeding into JoystickState.
+@Observable
 final class XboxUSBManager {
     private var notifyPort: IONotificationPortRef?
     private var iterators: [io_iterator_t] = []
@@ -167,6 +168,15 @@ final class XboxUSBManager {
     var onLog: ((String) -> Void)?
 
     private func log(_ text: String) { onLog?(text) }
+
+    func setRumble(deviceID: UUID, left: Double, right: Double) {
+        for (_, dev) in devices {
+            if dev.id == deviceID {
+                dev.setRumble(left: left, right: right)
+                return
+            }
+        }
+    }
 
     /// Known Xbox-compatible vendor/product pairs that macOS doesn't natively support.
     private static let knownDevices: [(vendorID: Int, productID: Int)] = [
@@ -279,6 +289,7 @@ private final class XboxUSBDevice {
     private var deviceInterface: UnsafeMutablePointer<UnsafeMutablePointer<IOUSBDeviceInterface>>?
     private var interfaceInterface: UnsafeMutablePointer<UnsafeMutablePointer<IOUSBInterfaceInterface>>?
     private var readBuffer = [UInt8](repeating: 0, count: 64)
+    private var lastReadLength: Int = 0
     private var readSource: CFRunLoopSource?
     private var pipeRefIn: UInt8 = 0
     private var pipeRefOut: UInt8 = 0
@@ -468,11 +479,13 @@ private final class XboxUSBDevice {
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         let kr = iface.pointee.pointee.ReadPipeAsync(
             iface, pipeRefIn, &readBuffer, UInt32(readBuffer.count),
-            { ctx, result, _ in
+            { ctx, result, actualLen in
                 guard let ctx else { return }
                 let dev = Unmanaged<XboxUSBDevice>.fromOpaque(ctx).takeUnretainedValue()
+                let len = Int(bitPattern: actualLen)
                 DispatchQueue.main.async { MainActor.assumeIsolated {
                     if result == KERN_SUCCESS || result == kIOReturnSuccess {
+                        dev.lastReadLength = len
                         dev.handleReport()
                     } else {
                         dev.log("XboxUSB: read error 0x\(String(result, radix: 16)), disconnecting")
@@ -488,13 +501,16 @@ private final class XboxUSBDevice {
     }
 
     private func handleReport() {
-        readBuffer.withUnsafeBufferPointer { buf in
-            guard buf.count > 0 else { scheduleRead(); return }
+        let len = lastReadLength
+        guard len > 0 else { scheduleRead(); return }
+
+        readBuffer.withUnsafeBufferPointer { fullBuf in
+            let buf = UnsafeBufferPointer(rebasing: fullBuf.prefix(len))
 
             let cmd = buf[0]
             if reportCount < 5 {
-                let hex = buf.prefix(24).map { String(format: "%02x", $0) }.joined(separator: " ")
-                log("XboxUSB: report #\(reportCount) cmd=0x\(String(format: "%02x", cmd)) (\(buf.count)B): \(hex)")
+                let hex = buf.prefix(min(len, 24)).map { String(format: "%02x", $0) }.joined(separator: " ")
+                log("XboxUSB: report #\(reportCount) cmd=0x\(String(format: "%02x", cmd)) (\(len)B): \(hex)")
             }
             reportCount += 1
 
@@ -504,7 +520,25 @@ private final class XboxUSBDevice {
             }
         }
 
+        // Zero the buffer before next read to avoid stale data
+        readBuffer.withUnsafeMutableBytes { $0.initializeMemory(as: UInt8.self, repeating: 0) }
         scheduleRead()
+    }
+
+    func setRumble(left: Double, right: Double) {
+        guard let iface = interfaceInterface, pipeRefOut != 0 else { return }
+        let l = UInt8(clamping: Int(left * 255))
+        let r = UInt8(clamping: Int(right * 255))
+        // GIP rumble command: cmd=0x09, client=0x00, seq=0x00, size=0x09
+        // motors mask 0x0F = all four motors, trigger L, trigger R, main L, main R
+        var packet: [UInt8] = [
+            0x09, 0x00, 0x00, 0x09,  // header
+            0x00, 0x0F,              // sub-command, motors mask
+            0x00, 0x00,              // trigger L, trigger R (unused)
+            l, r,                    // main left, main right
+            0xFF, 0x00, 0x00         // duration, delay, repeat
+        ]
+        iface.pointee.pointee.WritePipe(iface, pipeRefOut, &packet, UInt32(packet.count))
     }
 
     func close() {

@@ -118,6 +118,7 @@ final class AppState {
 struct JoystickSlot {
     var deviceID: UUID?
     var state:    JoystickState?
+    var rumble:   JoystickRumble = JoystickRumble()
 
     static let empty = JoystickSlot()
 }

@@ -13,6 +13,7 @@ struct FRCMacDSApp: App {
                 .environment(model.hidManager)
                 .environment(model.pcDiag)
                 .environment(model.keybindManager)
+                .environment(model.xboxUSBManager)
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 920, height: 280)

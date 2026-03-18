@@ -158,6 +158,11 @@ final class DSConnection {
         if let v = status.diskUsage     { appState.diskUsage      = v }
         if let v = status.canUtilization { appState.canUtilization = v }
 
+        // Pass rumble data to joystick slots
+        for (i, rumble) in status.rumble.prefix(appState.joystickSlots.count).enumerated() {
+            appState.joystickSlots[i].rumble = rumble
+        }
+
         appState.connectionState = appState.isEStopped ? .eStopped
                                  : appState.isEnabled  ? .enabled
                                  :                       .connected
