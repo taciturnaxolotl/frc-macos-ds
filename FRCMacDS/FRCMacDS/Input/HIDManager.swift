@@ -44,6 +44,9 @@ final class HIDManager {
     var onDeviceAdded:   ((UUID, JoystickState) -> Void)?
     var onDeviceRemoved: ((UUID) -> Void)?
     var onStateChanged:  ((UUID, JoystickState) -> Void)?
+    var onLog: ((String) -> Void)?
+
+    private func log(_ text: String) { onLog?(text) }
 
     // MARK: - Start / Stop
 
@@ -82,7 +85,8 @@ final class HIDManager {
         }, selfPtr)
 
         IOHIDManagerScheduleWithRunLoop(mgr, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
-        IOHIDManagerOpen(mgr, IOOptionBits(kIOHIDOptionsTypeNone))
+        let openResult = IOHIDManagerOpen(mgr, IOOptionBits(kIOHIDOptionsTypeNone))
+        log("HIDManager: started (open result: \(openResult == kIOReturnSuccess ? "OK" : "0x\(String(openResult, radix: 16))"))")
     }
 
     func stop() {
@@ -119,6 +123,7 @@ final class HIDManager {
         deviceData[key] = data
         deviceIDs[key]  = id
         connectedDevices.append(ConnectedDevice(id: id, name: name, vendorID: vendorID, productID: productID))
+        log("HIDManager: device added — \"\(name)\" vendor=0x\(String(vendorID, radix: 16)) product=0x\(String(productID, radix: 16)) axes=\(data.joystickState.axes.count) buttons=\(data.joystickState.buttons.count) povs=\(data.joystickState.povs.count)")
         onDeviceAdded?(id, data.joystickState)
     }
 

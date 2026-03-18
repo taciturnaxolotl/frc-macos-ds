@@ -4,6 +4,7 @@ import Foundation
 final class AppModel {
     let appState:       AppState
     let hidManager:     HIDManager
+    let gcManager:      GCManager
     let connection:     DSConnection
     let pcDiag:         PCDiagnosticsMonitor
     let keybindManager: KeybindManager
@@ -12,34 +13,55 @@ final class AppModel {
         let state = AppState()
         appState       = state
         hidManager     = HIDManager()
+        gcManager      = GCManager()
         connection     = DSConnection(appState: state)
         pcDiag         = PCDiagnosticsMonitor()
         keybindManager = KeybindManager()
 
-        hidManager.onDeviceAdded = { [weak self] (id: UUID, state: JoystickState) in
+        wireInputManager(hidManager)
+        wireInputManager(gcManager)
+        let logFn: (String) -> Void = { [weak state] text in
+            state?.appendLog(LogMessage(timestamp: .now, level: .info, text: text))
+        }
+        hidManager.onLog = logFn
+        gcManager.onLog = logFn
+
+        hidManager.start()
+        gcManager.start()
+        pcDiag.start()
+    }
+
+    /// Wires onDeviceAdded/Removed/StateChanged for any input manager.
+    private func wireInputManager<T>(_ mgr: T)
+    where T: AnyObject & _InputManagerCallbacks {
+        mgr.onDeviceAdded = { [weak self] (id: UUID, state: JoystickState) in
             guard let self else { return }
-            // Don't auto-assign if already in a slot
             guard !self.appState.joystickSlots.contains(where: { $0.deviceID == id }) else { return }
             if let emptyIdx = self.appState.joystickSlots.firstIndex(where: { $0.deviceID == nil }) {
                 self.appState.joystickSlots[emptyIdx] = JoystickSlot(deviceID: id, state: state)
             }
         }
-
-        hidManager.onDeviceRemoved = { [weak self] (id: UUID) in
+        mgr.onDeviceRemoved = { [weak self] (id: UUID) in
             guard let self else { return }
             if let idx = self.appState.joystickSlots.firstIndex(where: { $0.deviceID == id }) {
                 self.appState.joystickSlots[idx] = .empty
             }
         }
-
-        hidManager.onStateChanged = { [weak self] (id: UUID, state: JoystickState) in
+        mgr.onStateChanged = { [weak self] (id: UUID, state: JoystickState) in
             guard let self else { return }
             if let idx = self.appState.joystickSlots.firstIndex(where: { $0.deviceID == id }) {
                 self.appState.joystickSlots[idx].state = state
             }
         }
-
-        hidManager.start()
-        pcDiag.start()
     }
 }
+
+/// Shared callback shape for input managers (HIDManager & GCManager).
+protocol _InputManagerCallbacks: AnyObject {
+    var onDeviceAdded:   ((UUID, JoystickState) -> Void)? { get set }
+    var onDeviceRemoved: ((UUID) -> Void)? { get set }
+    var onStateChanged:  ((UUID, JoystickState) -> Void)? { get set }
+}
+
+extension HIDManager: _InputManagerCallbacks {}
+extension GCManager: _InputManagerCallbacks {}
