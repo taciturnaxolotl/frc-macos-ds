@@ -68,12 +68,17 @@ final class GCManager {
 
     private func addController(_ controller: GCController) {
         guard controllerIDs[controller] == nil else { return }
-        let id = UUID()
-        controllerIDs[controller] = id
         let name = controller.vendorName ?? "Unknown"
         let category = controller.productCategory
         let hasExtended = controller.extendedGamepad != nil
-        log("GCManager: controller added — \"\(name)\" category=\(category) extended=\(hasExtended)")
+        // Only handle controllers with extendedGamepad; HIDManager handles basic joysticks better
+        guard hasExtended else {
+            log("GCManager: skipping \"\(name)\" (no extendedGamepad, HIDManager will handle)")
+            return
+        }
+        let id = UUID()
+        controllerIDs[controller] = id
+        log("GCManager: controller added — \"\(name)\" category=\(category)")
         let state = readState(controller)
         onDeviceAdded?(id, state)
     }

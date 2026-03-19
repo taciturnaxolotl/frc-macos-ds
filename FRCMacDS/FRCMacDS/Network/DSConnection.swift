@@ -18,6 +18,7 @@ final class DSConnection {
     private var tcpTask:        Task<Void, Never>?
 
     var isConnected: Bool { appState.robotCommsOK }
+    var onRumble: (() -> Void)?
 
     init(appState: AppState) {
         self.appState = appState
@@ -159,8 +160,11 @@ final class DSConnection {
         if let v = status.canUtilization { appState.canUtilization = v }
 
         // Pass rumble data to joystick slots
-        for (i, rumble) in status.rumble.prefix(appState.joystickSlots.count).enumerated() {
-            appState.joystickSlots[i].rumble = rumble
+        if !status.rumble.isEmpty {
+            for (i, rumble) in status.rumble.prefix(appState.joystickSlots.count).enumerated() {
+                appState.joystickSlots[i].rumble = rumble
+            }
+            onRumble?()
         }
 
         appState.connectionState = appState.isEStopped ? .eStopped

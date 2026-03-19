@@ -9,7 +9,6 @@ final class AppModel {
     let connection:     DSConnection
     let pcDiag:         PCDiagnosticsMonitor
     let keybindManager: KeybindManager
-    private var rumbleTask: Task<Void, Never>?
 
     init() {
         let state = AppState()
@@ -31,28 +30,23 @@ final class AppModel {
         gcManager.onLog = logFn
         xboxUSBManager.onLog = logFn
 
+        connection.onRumble = { [weak self] in
+            self?.applyRumble()
+        }
+
         hidManager.start()
         gcManager.start()
         xboxUSBManager.start()
         pcDiag.start()
-        startRumbleLoop()
     }
 
-    /// Polls rumble values from appState and forwards to Xbox USB controllers.
-    private func startRumbleLoop() {
-        rumbleTask = Task { @MainActor [weak self] in
-            let clock = ContinuousClock()
-            while !Task.isCancelled {
-                try? await clock.sleep(for: .milliseconds(20))
-                guard let self else { return }
-                for slot in self.appState.joystickSlots {
-                    guard let id = slot.deviceID else { continue }
-                    let r = slot.rumble
-                    if r.left > 0 || r.right > 0 {
-                        self.xboxUSBManager.setRumble(deviceID: id, left: r.left, right: r.right)
-                    }
-                }
-            }
+    /// Forwards rumble values from appState to Xbox USB controllers.
+    /// Called from DSConnection when a status packet with rumble data arrives.
+    func applyRumble() {
+        for slot in appState.joystickSlots {
+            guard let id = slot.deviceID else { continue }
+            let r = slot.rumble
+            xboxUSBManager.setRumble(deviceID: id, left: r.left, right: r.right)
         }
     }
 
