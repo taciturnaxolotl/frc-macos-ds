@@ -20,6 +20,7 @@ jobs:
     permissions:
       contents: write
     outputs:
+      version: ${{ steps.version.outputs.version }}
       dmg_name: ${{ steps.package.outputs.dmg_name }}
       dmg_size: ${{ steps.sparkle_sign.outputs.dmg_size }}
       sparkle_signature: ${{ steps.sparkle_sign.outputs.signature }}
@@ -220,7 +221,7 @@ jobs:
           RELEASE_BODY: ${{ github.event.release.body }}
         run: |
           ./scripts/update-appcast.sh \
-            "${{ steps.version.outputs.version }}" \
+            "${{ needs.build-macos.outputs.version }}" \
             "${{ env.VERSION }}" \
             "${{ needs.build-macos.outputs.dmg_size }}" \
             "${{ needs.build-macos.outputs.sparkle_signature }}" \

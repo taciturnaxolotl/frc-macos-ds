@@ -6,6 +6,25 @@
     <description>Most recent updates to FRC Mac DS</description>
     <language>en</language>
     <item>
+      <title>Version 0.0.3</title>
+      <pubDate>Thu, 19 Mar 2026 09:45:52 +0000</pubDate>
+      <sparkle:version>0.0.3</sparkle:version>
+      <sparkle:shortVersionString>0.0.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<h2>What&#x27;s Changed</h2>
+<ul>
+  <li><b>Fix joystick input handling</b> — resolved an issue with joystick mapping</li>
+  <li><b>Fix release workflow</b> — added proper permissions for uploading release assets</li>
+</ul>
+<p><b>Full Changelog</b>: https://github.com/taciturnaxolotl/frc-macos-ds/compare/v0.0.2...v0.0.3</p>]]></description>
+      <enclosure
+        url="https://github.com/taciturnaxolotl/frc-macos-ds/releases/download/v0.0.3/FRCMacDS-0.0.3-macOS.dmg"
+        sparkle:edSignature="AiBI65l8sP+5Si+d1cx5rKZ15JHaM68Ue6O/Ncz7GbuGs6BQhxcV8biGv8Cs7s7ldHlaNfOTPvtmOOu1jKOVDQ=="
+        length="4100619"
+        type="application/octet-stream"
+        sparkle:os="macos"/>
+    </item>
+    <item>
       <title>Version 0.0.1</title>
       <pubDate>Mon, 16 Mar 2026 02:55:32 +0000</pubDate>
       <sparkle:version>0.0.1</sparkle:version>
